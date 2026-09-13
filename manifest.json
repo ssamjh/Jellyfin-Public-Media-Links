@@ -9,11 +9,11 @@
     "versions": [
       {
         "version": "1.0.0.0",
-        "changelog": "Initial release.",
+        "changelog": "Release 1.0.0.0",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/ssamjh/Jellyfin-Public-Media-Links/releases/download/v1.0.0.0/public-media-links_1.0.0.0.zip",
-        "checksum": "1e503fcf4c81b4f3a41aff08e2ebeb87",
-        "timestamp": "2026-09-13T04:42:34Z",
+        "checksum": "b15dc30d6d39f0d9cf87edcf276b5479",
+        "timestamp": "2026-09-13T05:00:42Z",
         "repositoryName": "Public Media Links",
         "repositoryUrl": "https://github.com/ssamjh/Jellyfin-Public-Media-Links"
       }
