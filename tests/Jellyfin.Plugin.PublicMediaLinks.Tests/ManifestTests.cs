@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using Jellyfin.Extensions.Json;
 using MediaBrowser.Model.Updates;
 using Xunit;
 
@@ -29,7 +30,10 @@ public class ManifestTests
         Assert.NotNull(directory);
 
         var json = File.ReadAllText(Path.Combine(directory!.FullName, "manifest.json"));
-        var packages = JsonSerializer.Deserialize<PackageInfo[]>(json);
+
+        // JsonDefaults.Options is exactly what InstallationManager uses to read a repository
+        // manifest, converters and all, so this parses the file the way the server will.
+        var packages = JsonSerializer.Deserialize<PackageInfo[]>(json, JsonDefaults.Options);
 
         Assert.NotNull(packages);
         return packages!;
