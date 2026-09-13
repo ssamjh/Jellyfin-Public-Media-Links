@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, e.g. 1.0.0.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The manifest is committed back to the default branch, so check that out
+          # rather than the detached tag commit.
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Resolve version
+        id: version
+        run: |
+          RAW="${{ github.event.inputs.version || github.ref_name }}"
+          VERSION="${RAW#v}"
+          # Jellyfin parses this with System.Version and wants four parts.
+          while [ "$(echo "$VERSION" | tr -cd '.' | wc -c)" -lt 3 ]; do VERSION="$VERSION.0"; done
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing $VERSION"
+
+      - name: Test
+        run: dotnet test --configuration Release
+
+      - name: Build
+        run: |
+          dotnet publish Jellyfin.Plugin.PublicMediaLinks/Jellyfin.Plugin.PublicMediaLinks.csproj \
+            --configuration Release \
+            --output publish \
+            -p:Version=${{ steps.version.outputs.version }} \
+            -p:AssemblyVersion=${{ steps.version.outputs.version }} \
+            -p:FileVersion=${{ steps.version.outputs.version }}
+
+      - name: Package
+        id: package
+        run: |
+          mkdir -p artifacts
+          ZIP="artifacts/public-media-links_${{ steps.version.outputs.version }}.zip"
+          # Jellyfin generates meta.json on install, so the zip only needs the assembly.
+          cd publish && zip -j "../$ZIP" Jellyfin.Plugin.PublicMediaLinks.dll && cd ..
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$ZIP")" >> "$GITHUB_OUTPUT"
+
+      - name: Update manifest
+        run: |
+          node build/update-manifest.js \
+            --version "${{ steps.version.outputs.version }}" \
+            --zip "${{ steps.package.outputs.zip }}" \
+            --source-url "https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }}/${{ steps.package.outputs.name }}" \
+            --changelog "Release ${{ steps.version.outputs.version }}"
+
+      - name: Verify the generated manifest
+        # The earlier test run validated the previous manifest. Re-check now that the new
+        # version has been written, so a broken manifest never reaches the default branch.
+        run: dotnet test --configuration Release --filter "FullyQualifiedName~ManifestTests"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          files: ${{ steps.package.outputs.zip }}
+          generate_release_notes: true
+
+      - name: Commit manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          if git diff --staged --quiet; then
+            echo "Manifest unchanged"
+          else
+            git commit -m "Publish ${{ steps.version.outputs.version }} to the plugin manifest"
+            git push origin main
+          fi

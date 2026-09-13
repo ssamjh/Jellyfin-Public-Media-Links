@@ -24,6 +24,7 @@ public static class LinkManager
     /// <param name="itemName">A display name for the dashboard.</param>
     /// <param name="ttlHours">Requested lifetime in hours.</param>
     /// <param name="createdBy">The administrator creating the link.</param>
+    /// <param name="userId">The user the link plays back as.</param>
     /// <param name="note">An optional note about who the link is for.</param>
     /// <returns>The stored entry and its token.</returns>
     public static (IssuedLink Link, string Token) Issue(
@@ -31,6 +32,7 @@ public static class LinkManager
         string itemName,
         int ttlHours,
         string createdBy,
+        Guid userId,
         string note)
     {
         var plugin = Plugin.Instance ?? throw new InvalidOperationException("Plugin is not loaded.");
@@ -49,6 +51,7 @@ public static class LinkManager
                 CreatedUtc = now,
                 ExpiresUtc = now.AddHours(ttl),
                 CreatedBy = createdBy,
+                UserId = userId,
                 Note = note
             };
 
@@ -115,6 +118,29 @@ public static class LinkManager
             plugin.Configuration.SigningKey = TokenService.GenerateSigningKey();
             plugin.Configuration.IssuedLinks.Clear();
             plugin.SaveConfiguration();
+        }
+    }
+
+    /// <summary>
+    /// Finds an unexpired link by nonce.
+    /// </summary>
+    /// <param name="nonce">The nonce to look up.</param>
+    /// <returns>The link, or null.</returns>
+    public static IssuedLink? Find(string nonce)
+    {
+        var plugin = Plugin.Instance;
+        if (plugin is null)
+        {
+            return null;
+        }
+
+        var now = DateTime.UtcNow;
+
+        lock (_lock)
+        {
+            return plugin.Configuration.IssuedLinks.FirstOrDefault(l =>
+                string.Equals(l.Nonce, nonce, StringComparison.OrdinalIgnoreCase)
+                && l.ExpiresUtc > now);
         }
     }
 

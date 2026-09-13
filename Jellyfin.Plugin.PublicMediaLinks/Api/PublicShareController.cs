@@ -56,12 +56,25 @@ public class PublicShareController : ControllerBase
         </style></head>
         <body><main>
         <h1>{{TITLE}}</h1>
-        <{{TAG}} controls autoplay playsinline preload="metadata" src="../s/{{TOKEN}}"></{{TAG}}>
+        <{{TAG}} id="player" controls autoplay playsinline preload="metadata" src="../s/{{TOKEN}}"></{{TAG}}>
         <div>{{DOWNLOAD}}</div>
         <p class="meta">This link expires at {{EXPIRES}}.</p>
-        <p class="meta">If playback does not start, your browser cannot decode this container
-        (MKV and similar are common causes). Open the stream URL in VLC or mpv instead:<br>
-        <code>{{STREAMURL}}</code></p>
+        <p class="meta">If playback does not start, your browser cannot decode this file.
+        Open one of these in VLC, mpv or any player that takes a URL:</p>
+        <p class="meta">Original file:<br><code>{{STREAMURL}}</code></p>
+        {{HLSBLOCK}}
+        <script>
+        (function () {
+            // Safari and iOS play HLS natively and will handle the original container even
+            // when the <video> element cannot. Everything else needs an external player,
+            // so no third-party library is pulled in here.
+            var hls = "{{HLSURL}}";
+            var player = document.getElementById('player');
+            if (hls && player && player.canPlayType('application/vnd.apple.mpegurl')) {
+                player.src = hls;
+            }
+        })();
+        </script>
         </main></body></html>
         """;
 
@@ -134,7 +147,9 @@ public class PublicShareController : ControllerBase
 
         var encoder = HtmlEncoder.Default;
         var safeToken = encoder.Encode(token);
-        var streamUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}/PublicMediaLinks/s/{token}";
+        var origin = $"{Request.Scheme}://{Request.Host}{Request.PathBase}".TrimEnd('/');
+        var streamUrl = $"{origin}/PublicMediaLinks/s/{token}";
+        var hlsUrl = config.EnableHls ? ShareUrls.BuildHls(origin, item.Id, token, config) : null;
 
         var isAudio = string.Equals(item.MediaType.ToString(), "Audio", StringComparison.OrdinalIgnoreCase);
 
@@ -143,6 +158,14 @@ public class PublicShareController : ControllerBase
             .Replace("{{TAG}}", isAudio ? "audio" : "video", StringComparison.Ordinal)
             .Replace("{{TOKEN}}", safeToken, StringComparison.Ordinal)
             .Replace("{{STREAMURL}}", encoder.Encode(streamUrl), StringComparison.Ordinal)
+            .Replace("{{HLSURL}}", encoder.Encode(hlsUrl ?? string.Empty), StringComparison.Ordinal)
+            .Replace(
+                "{{HLSBLOCK}}",
+                hlsUrl is null
+                    ? string.Empty
+                    : "<p class=\"meta\">HLS playlist, for players that cannot read the original "
+                      + "container:<br><code>" + encoder.Encode(hlsUrl) + "</code></p>",
+                StringComparison.Ordinal)
             .Replace(
                 "{{EXPIRES}}",
                 parsed.ExpiresUtc.ToString("u", CultureInfo.InvariantCulture),

@@ -1,0 +1,22 @@
+[
+  {
+    "guid": "2b9c4f61-7a3d-4e58-9d1c-0f5a6c8e2b74",
+    "name": "Public Media Links",
+    "description": "Creates signed, self-expiring URLs for a single library item. The link carries its own HMAC signature and expiry, so it can be handed to someone without a Jellyfin account and without exposing your access token. Links can be revoked individually or all at once.",
+    "overview": "Share expiring, account-free direct play links to individual library items.",
+    "owner": "ssamjh",
+    "category": "General",
+    "versions": [
+      {
+        "version": "1.0.0.0",
+        "changelog": "Initial release.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/ssamjh/Jellyfin-Public-Media-Links/releases/download/v1.0.0.0/public-media-links_1.0.0.0.zip",
+        "checksum": "1e503fcf4c81b4f3a41aff08e2ebeb87",
+        "timestamp": "2026-09-13T04:42:34Z",
+        "repositoryName": "Public Media Links",
+        "repositoryUrl": "https://github.com/ssamjh/Jellyfin-Public-Media-Links"
+      }
+    ]
+  }
+]

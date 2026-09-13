@@ -38,6 +38,18 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool AllowDownload { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets a value indicating whether share links also expose an HLS playlist.
+    /// This lets Jellyfin's own streaming endpoints serve the link, which players that
+    /// cannot handle the source container (games, TVs, set-top boxes) generally need.
+    /// </summary>
+    public bool EnableHls { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the HLS segment container, "ts" or "mp4" (fMP4).
+    /// </summary>
+    public string HlsSegmentContainer { get; set; } = "ts";
+
+    /// <summary>
     /// Gets or sets the links that have been issued and are still valid.
     /// A token is only honoured while its entry is present here, so deleting an
     /// entry revokes that single link immediately.
@@ -80,6 +92,13 @@ public class IssuedLink
     /// Gets or sets the name of the administrator who created the link.
     /// </summary>
     public string CreatedBy { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the id of the user the link plays back as. HLS goes through Jellyfin's
+    /// own endpoints, which need a user for library access checks. If that account is
+    /// removed the link stops working.
+    /// </summary>
+    public Guid UserId { get; set; }
 
     /// <summary>
     /// Gets or sets a free text note describing who the link was shared with.

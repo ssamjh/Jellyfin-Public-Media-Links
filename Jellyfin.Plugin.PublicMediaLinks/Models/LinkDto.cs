@@ -57,4 +57,10 @@ public class LinkDto
     /// Gets or sets the download URL, when downloads are enabled.
     /// </summary>
     public string? DownloadUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets the HLS playlist URL, when HLS is enabled. Served by Jellyfin's own
+    /// streaming pipeline and authorised by the share token.
+    /// </summary>
+    public string? HlsUrl { get; set; }
 }

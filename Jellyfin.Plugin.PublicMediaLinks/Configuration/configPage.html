@@ -43,6 +43,26 @@
                     </div>
                 </div>
 
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="PmlEnableHls" />
+                        <span>Also provide an HLS playlist URL</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">
+                        Serves the link through Jellyfin's own streaming pipeline, for players
+                        that cannot read the original container. Source streams are copied, not
+                        re-encoded, when the codecs already match (H.264 / AAC).
+                    </div>
+                </div>
+
+                <div class="selectContainer">
+                    <label class="selectLabel" for="PmlSegmentContainer">HLS segment container</label>
+                    <select is="emby-select" id="PmlSegmentContainer" class="emby-select-withcolor emby-select">
+                        <option value="ts">MPEG-TS (widest compatibility)</option>
+                        <option value="mp4">fMP4 / CMAF</option>
+                    </select>
+                </div>
+
                 <button is="emby-button" type="submit" class="raised button-submit block">
                     <span>Save</span>
                 </button>
@@ -170,6 +190,12 @@
                     streamBtn.addEventListener('click', function () { copy(link.StreamUrl, streamBtn); });
                     card.appendChild(streamBtn);
 
+                    if (link.HlsUrl) {
+                        var hlsBtn = el('button', 'Copy HLS URL', { type: 'button', is: 'emby-button', 'class': 'raised', style: 'margin-left:8px;' });
+                        hlsBtn.addEventListener('click', function () { copy(link.HlsUrl, hlsBtn); });
+                        card.appendChild(hlsBtn);
+                    }
+
                     var revokeBtn = el('button', 'Revoke', { type: 'button', is: 'emby-button', 'class': 'raised', style: 'margin-left:8px;' });
                     revokeBtn.addEventListener('click', function () {
                         Dashboard.showLoadingMsg();
@@ -248,6 +274,8 @@
                         page.querySelector('#PmlMaxTtl').value = config.MaxTtlHours;
                         page.querySelector('#PmlBaseUrl').value = config.PublicBaseUrl || '';
                         page.querySelector('#PmlAllowDownload').checked = config.AllowDownload;
+                        page.querySelector('#PmlEnableHls').checked = config.EnableHls;
+                        page.querySelector('#PmlSegmentContainer').value = config.HlsSegmentContainer || 'ts';
                         page.querySelector('#PmlTtl').value = config.DefaultTtlHours;
                         loadLinks(page);
                     });
@@ -307,6 +335,8 @@
                             config.MaxTtlHours = parseInt(page.querySelector('#PmlMaxTtl').value, 10);
                             config.PublicBaseUrl = page.querySelector('#PmlBaseUrl').value;
                             config.AllowDownload = page.querySelector('#PmlAllowDownload').checked;
+                            config.EnableHls = page.querySelector('#PmlEnableHls').checked;
+                            config.HlsSegmentContainer = page.querySelector('#PmlSegmentContainer').value;
 
                             ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
                                 Dashboard.processPluginConfigurationUpdateResult(result);

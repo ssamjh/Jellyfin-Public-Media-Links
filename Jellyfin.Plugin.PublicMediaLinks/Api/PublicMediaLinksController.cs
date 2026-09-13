@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Jellyfin.Plugin.PublicMediaLinks.Configuration;
 using Jellyfin.Plugin.PublicMediaLinks.Models;
@@ -89,6 +90,7 @@ public class PublicMediaLinksController : ControllerBase
             item.Name ?? item.Id.ToString(),
             request.TtlHours ?? config.DefaultTtlHours,
             User.Identity?.Name ?? "unknown",
+            GetCurrentUserId(),
             request.Note ?? string.Empty);
 
         return Ok(ToDto(link, config, ResolveBaseUrl(config), token));
@@ -139,8 +141,20 @@ public class PublicMediaLinksController : ControllerBase
             Note = link.Note,
             WatchUrl = $"{baseUrl}/PublicMediaLinks/w/{token}",
             StreamUrl = $"{baseUrl}/PublicMediaLinks/s/{token}",
-            DownloadUrl = config.AllowDownload ? $"{baseUrl}/PublicMediaLinks/d/{token}" : null
+            DownloadUrl = config.AllowDownload ? $"{baseUrl}/PublicMediaLinks/d/{token}" : null,
+            HlsUrl = config.EnableHls ? ShareUrls.BuildHls(baseUrl, link.ItemId, token, config) : null
         };
+    }
+
+    /// <summary>
+    /// Reads the calling user's id from the Jellyfin auth claim. Plugins cannot reference
+    /// Jellyfin.Api, so the claim is read directly rather than via its extension method.
+    /// </summary>
+    private Guid GetCurrentUserId()
+    {
+        var value = User.FindFirst("Jellyfin-UserId")?.Value;
+
+        return Guid.TryParse(value, out var id) ? id : Guid.Empty;
     }
 
     private string ResolveBaseUrl(PluginConfiguration config)

@@ -9,6 +9,8 @@ description: >
   Creates signed, self-expiring URLs for a single library item. The link carries its own
   HMAC signature and expiry, so it can be handed to someone without a Jellyfin account and
   without exposing your access token. Links can be revoked individually or all at once.
+  Links serve the original file directly, and optionally an HLS playlist for players that
+  cannot read the source container (remuxed, not re-encoded, when codecs already match).
   Optionally adds a "Copy Public Share Link" item to the web client context menu; this
   requires the File Transformation plugin, and everything else works without it.
 category: "General"
