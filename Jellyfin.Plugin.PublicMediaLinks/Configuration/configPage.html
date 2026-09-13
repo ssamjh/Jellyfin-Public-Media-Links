@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Public Media Links</title>
+</head>
+<body>
+<div id="PublicMediaLinksConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox">
+    <div data-role="content">
+        <div class="content-primary">
+
+            <form id="PmlSettingsForm">
+                <h2>Settings</h2>
+
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="PmlDefaultTtl">Default link lifetime (hours)</label>
+                    <input is="emby-input" type="number" id="PmlDefaultTtl" min="1" required />
+                    <div class="fieldDescription">Pre-filled when creating a link.</div>
+                </div>
+
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="PmlMaxTtl">Maximum link lifetime (hours)</label>
+                    <input is="emby-input" type="number" id="PmlMaxTtl" min="1" required />
+                    <div class="fieldDescription">Requests for a longer lifetime are clamped to this value.</div>
+                </div>
+
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="PmlBaseUrl">Public base URL</label>
+                    <input is="emby-input" type="text" id="PmlBaseUrl" placeholder="https://jellyfin.example.com" />
+                    <div class="fieldDescription">
+                        Optional. The externally reachable address of this server, used to build share
+                        links. Leave blank to use the address the dashboard was loaded from.
+                    </div>
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input is="emby-checkbox" type="checkbox" id="PmlAllowDownload" />
+                        <span>Allow downloading the original file</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">
+                        When off, link holders can only stream.
+                    </div>
+                </div>
+
+                <button is="emby-button" type="submit" class="raised button-submit block">
+                    <span>Save</span>
+                </button>
+            </form>
+
+            <br />
+            <h2>Create a link</h2>
+
+            <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="PmlSearch">Find media</label>
+                <input is="emby-input" type="text" id="PmlSearch" placeholder="Start typing a title..." autocomplete="off" />
+            </div>
+
+            <div id="PmlResults" style="margin-bottom:1em;"></div>
+
+            <div id="PmlSelected" style="display:none;">
+                <p>Selected: <strong id="PmlSelectedName"></strong></p>
+
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="PmlTtl">Expires in (hours)</label>
+                    <input is="emby-input" type="number" id="PmlTtl" min="1" />
+                </div>
+
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="PmlNote">Note (optional)</label>
+                    <input is="emby-input" type="text" id="PmlNote" placeholder="Who is this for?" />
+                </div>
+
+                <button is="emby-button" type="button" id="PmlCreate" class="raised button-submit block">
+                    <span>Create link</span>
+                </button>
+            </div>
+
+            <br />
+            <h2>Active links</h2>
+            <p class="fieldDescription">
+                Anyone with one of these URLs can play that single item until it expires. No account
+                or API key is involved, and the link grants access to nothing else.
+            </p>
+            <div id="PmlLinks"></div>
+
+            <br />
+            <button is="emby-button" type="button" id="PmlRevokeAll" class="raised block">
+                <span>Revoke every link</span>
+            </button>
+            <div class="fieldDescription">
+                Rotates the signing key, which permanently breaks every link ever issued.
+            </div>
+
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        (function () {
+            var pluginId = '2b9c4f61-7a3d-4e58-9d1c-0f5a6c8e2b74';
+            var selectedItem = null;
+            var searchTimer = null;
+            var wired = false;
+
+            function api(method, path, body) {
+                var opts = {
+                    type: method,
+                    url: ApiClient.getUrl('PublicMediaLinks/' + path)
+                };
+                if (body) {
+                    opts.data = JSON.stringify(body);
+                    opts.contentType = 'application/json';
+                }
+                if (method !== 'DELETE') {
+                    opts.dataType = 'json';
+                }
+                return ApiClient.ajax(opts);
+            }
+
+            function el(tag, text, attrs) {
+                var node = document.createElement(tag);
+                if (text !== null && text !== undefined) {
+                    node.textContent = text;
+                }
+                for (var key in (attrs || {})) {
+                    node.setAttribute(key, attrs[key]);
+                }
+                return node;
+            }
+
+            function copy(text, button) {
+                navigator.clipboard.writeText(text).then(function () {
+                    var original = button.textContent;
+                    button.textContent = 'Copied';
+                    setTimeout(function () { button.textContent = original; }, 1500);
+                });
+            }
+
+            function renderLinks(page, links) {
+                var host = page.querySelector('#PmlLinks');
+                host.innerHTML = '';
+
+                if (!links.length) {
+                    host.appendChild(el('p', 'No active links.', { 'class': 'fieldDescription' }));
+                    return;
+                }
+
+                links.forEach(function (link) {
+                    var card = el('div', null, { style: 'border:1px solid #333;border-radius:6px;padding:12px;margin-bottom:10px;' });
+
+                    card.appendChild(el('div', link.ItemName, { style: 'font-weight:600;' }));
+
+                    var expires = new Date(link.ExpiresUtc);
+                    var meta = 'Expires ' + expires.toLocaleString() + ' · by ' + link.CreatedBy;
+                    if (link.Note) {
+                        meta += ' · ' + link.Note;
+                    }
+                    card.appendChild(el('div', meta, { 'class': 'fieldDescription' }));
+
+                    var url = el('div', link.WatchUrl, {
+                        style: 'font-family:monospace;font-size:.8em;word-break:break-all;margin:8px 0;'
+                    });
+                    card.appendChild(url);
+
+                    var copyBtn = el('button', 'Copy share link', { type: 'button', is: 'emby-button', 'class': 'raised' });
+                    copyBtn.addEventListener('click', function () { copy(link.WatchUrl, copyBtn); });
+                    card.appendChild(copyBtn);
+
+                    var streamBtn = el('button', 'Copy stream URL', { type: 'button', is: 'emby-button', 'class': 'raised', style: 'margin-left:8px;' });
+                    streamBtn.addEventListener('click', function () { copy(link.StreamUrl, streamBtn); });
+                    card.appendChild(streamBtn);
+
+                    var revokeBtn = el('button', 'Revoke', { type: 'button', is: 'emby-button', 'class': 'raised', style: 'margin-left:8px;' });
+                    revokeBtn.addEventListener('click', function () {
+                        Dashboard.showLoadingMsg();
+                        api('DELETE', 'Links/' + link.Nonce).then(function () {
+                            loadLinks(page);
+                        });
+                    });
+                    card.appendChild(revokeBtn);
+
+                    host.appendChild(card);
+                });
+            }
+
+            function loadLinks(page) {
+                return api('GET', 'Links').then(function (links) {
+                    renderLinks(page, links);
+                    Dashboard.hideLoadingMsg();
+                });
+            }
+
+            function renderResults(page, items) {
+                var host = page.querySelector('#PmlResults');
+                host.innerHTML = '';
+
+                items.forEach(function (item) {
+                    var label = item.Name;
+                    if (item.SeriesName) {
+                        label = item.SeriesName + ' – ' + item.Name;
+                    }
+                    if (item.ProductionYear) {
+                        label += ' (' + item.ProductionYear + ')';
+                    }
+
+                    var btn = el('button', label, {
+                        type: 'button',
+                        is: 'emby-button',
+                        'class': 'raised block',
+                        style: 'text-align:left;margin-bottom:4px;'
+                    });
+                    btn.addEventListener('click', function () {
+                        selectedItem = item;
+                        page.querySelector('#PmlSelectedName').textContent = label;
+                        page.querySelector('#PmlSelected').style.display = 'block';
+                        host.innerHTML = '';
+                        page.querySelector('#PmlSearch').value = '';
+                    });
+                    host.appendChild(btn);
+                });
+            }
+
+            function search(page, term) {
+                if (!term) {
+                    page.querySelector('#PmlResults').innerHTML = '';
+                    return;
+                }
+
+                ApiClient.getJSON(ApiClient.getUrl('Items', {
+                    searchTerm: term,
+                    recursive: true,
+                    includeItemTypes: 'Movie,Episode,Video,MusicVideo,Audio,Book',
+                    limit: 20,
+                    fields: 'Path',
+                    userId: ApiClient.getCurrentUserId()
+                })).then(function (result) {
+                    renderResults(page, result.Items || []);
+                });
+            }
+
+            document.querySelector('#PublicMediaLinksConfigPage')
+                .addEventListener('pageshow', function () {
+                    var page = this;
+                    Dashboard.showLoadingMsg();
+
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        page.querySelector('#PmlDefaultTtl').value = config.DefaultTtlHours;
+                        page.querySelector('#PmlMaxTtl').value = config.MaxTtlHours;
+                        page.querySelector('#PmlBaseUrl').value = config.PublicBaseUrl || '';
+                        page.querySelector('#PmlAllowDownload').checked = config.AllowDownload;
+                        page.querySelector('#PmlTtl').value = config.DefaultTtlHours;
+                        loadLinks(page);
+                    });
+
+                    // pageshow fires on every visit; only bind the handlers once.
+                    if (wired) {
+                        return;
+                    }
+                    wired = true;
+
+                    page.querySelector('#PmlSearch').addEventListener('input', function () {
+                        var term = this.value;
+                        clearTimeout(searchTimer);
+                        searchTimer = setTimeout(function () { search(page, term); }, 300);
+                    });
+
+                    page.querySelector('#PmlCreate').addEventListener('click', function () {
+                        if (!selectedItem) {
+                            return;
+                        }
+
+                        Dashboard.showLoadingMsg();
+                        api('POST', 'Links', {
+                            ItemId: selectedItem.Id,
+                            TtlHours: parseInt(page.querySelector('#PmlTtl').value, 10),
+                            Note: page.querySelector('#PmlNote').value
+                        }).then(function () {
+                            selectedItem = null;
+                            page.querySelector('#PmlSelected').style.display = 'none';
+                            page.querySelector('#PmlNote').value = '';
+                            loadLinks(page);
+                        }, function () {
+                            Dashboard.hideLoadingMsg();
+                            Dashboard.alert('That item cannot be shared.');
+                        });
+                    });
+
+                    page.querySelector('#PmlRevokeAll').addEventListener('click', function () {
+                        Dashboard.confirm(
+                            'Every link that has ever been issued will stop working. Continue?',
+                            'Revoke every link',
+                            function (confirmed) {
+                                if (!confirmed) {
+                                    return;
+                                }
+                                Dashboard.showLoadingMsg();
+                                api('POST', 'RevokeAll').then(function () { loadLinks(page); });
+                            });
+                    });
+
+                    page.querySelector('#PmlSettingsForm').addEventListener('submit', function (e) {
+                        e.preventDefault();
+                        Dashboard.showLoadingMsg();
+
+                        ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                            config.DefaultTtlHours = parseInt(page.querySelector('#PmlDefaultTtl').value, 10);
+                            config.MaxTtlHours = parseInt(page.querySelector('#PmlMaxTtl').value, 10);
+                            config.PublicBaseUrl = page.querySelector('#PmlBaseUrl').value;
+                            config.AllowDownload = page.querySelector('#PmlAllowDownload').checked;
+
+                            ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
+                                Dashboard.processPluginConfigurationUpdateResult(result);
+                            });
+                        });
+
+                        return false;
+                    });
+                });
+        })();
+    </script>
+</div>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "jellyfin-public-media-links-web-tests",
+  "private": true,
+  "version": "1.0.0",
+  "description": "DOM tests for the injected Copy Public Share Link script.",
+  "scripts": {
+    "test": "node contextMenu.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.0"
+  }
+}

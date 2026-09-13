@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Jellyfin.Plugin.PublicMediaLinks/Jellyfin.Plugin.PublicMediaLinks.csproj" />
+  <Project Path="tests/Jellyfin.Plugin.PublicMediaLinks.Tests/Jellyfin.Plugin.PublicMediaLinks.Tests.csproj" />
+</Solution>
